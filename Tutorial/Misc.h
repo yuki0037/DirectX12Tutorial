@@ -1,7 +1,25 @@
 #pragma once
 #include <system_error>
 #include <crtdbg.h>
-#include <winerror.h>
+#include <Windows.h>
+#include <assert.h>
+
+#undef min
+#undef max
+
+#define SAFE_DELETE(ptr)\
+if(ptr != nullptr)\
+{\
+	delete ptr;\
+	ptr = nullptr; \
+}
+
+#define SAFE_DELETE_ARRAY(ptr)\
+if(ptr != nullptr)\
+{\
+	delete[] ptr;\
+	ptr = nullptr; \
+}
 
 #define SAFE_RELEASE(com)\
 if(com != nullptr)\

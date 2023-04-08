@@ -12,19 +12,50 @@ class DescriptorHeap
 {
 private:
 	ID3D12DescriptorHeap* mDescriptorHeap;
-	UINT mIncrementSize;
+	const UINT mNumDescriptors;
+	const UINT mIncrementSize;
 public:
-	DescriptorHeap(ID3D12Device* device, UINT numDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE type);
-	DescriptorHandle GetHandle(UINT index)const;
-	~DescriptorHeap();
+	DescriptorHeap(ID3D12Device* device,
+		UINT numDescriptors,
+		D3D12_DESCRIPTOR_HEAP_TYPE type);
+	[[nodiscard]] DescriptorHandle GetHandle(UINT index)const;
+	[[nodiscard]] const ID3D12DescriptorHeap* GetDescriptorHeap()const { return mDescriptorHeap; }
+	[[nodiscard]] const UINT GetNumDescriptors()const { return mNumDescriptors; }
+	[[nodiscard]] const UINT GetIncrementSize()const { return mIncrementSize; }
+	virtual ~DescriptorHeap();
 };
 
 class DescriptorAllocator
 {
 private:
-	using DescriptorHeaps = std::map<D3D12_DESCRIPTOR_HEAP_TYPE, DescriptorHeap*>;
+	const DescriptorHeap mRtv;
+	UINT mRtvIndex;
+	const DescriptorHeap mDsv;
+	UINT mDsvIndex;
+	const DescriptorHeap mCbvSrvUav;
+	UINT mCbvSrvUavIndex;
+	const DescriptorHeap mSampler;
+	UINT mSamplerIndex;
 private:
-	DescriptorHeaps mDescriptorHeaps;
+	static DescriptorHandle Allocation(
+		const DescriptorHeap* descriptorHeap,
+		UINT* inoutStartIndex,
+		UINT* inoutNumHandle,
+		UINT* optoutIncrementSize);
 public:
-	DescriptorAllocator();
+	DescriptorAllocator(ID3D12Device* device,
+		UINT numRtv,
+		UINT numDsv,
+		UINT numCbvSrvUav,
+		UINT numSampler);
+
+	[[nodiscard]] DescriptorHandle Allocation(
+		D3D12_DESCRIPTOR_HEAP_TYPE type,
+		UINT* inoutNumHandle,
+		UINT* optoutIncrementSize = nullptr);
+
+	[[nodiscard]] const DescriptorHeap* GetDescriptorHeap(
+		D3D12_DESCRIPTOR_HEAP_TYPE type)const;
+
+	virtual ~DescriptorAllocator();
 };
