@@ -7,6 +7,12 @@
 #undef min
 #undef max
 
+#if defined(DEBUG) | defined(_DEBUG)
+#define _NEW new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
+#else
+#define _NEW new
+#endif
+
 #define SAFE_DELETE(ptr)\
 if(ptr != nullptr)\
 {\
@@ -33,7 +39,7 @@ if(com != nullptr)\
 #if defined( DEBUG ) || defined( _DEBUG )
 #define _ASSERT_EXPR_A(expr, msg) \
 	(void)((!!(expr)) || \
-	(1 != _CrtDbgReport(_CRT_ASSERT, __FILE__, __LINE__, NULL, "%s", msg)) || \
+	(1 != _CrtDbgReport(_CRT_ASSERT, __FILE__, __LINE__, __FUNCDNAME__, "%s", msg)) || \
 	(_CrtDbgBreak(), 0))
 #else
 #define  _ASSERT_EXPR_A(expr, expr_str) ((void)0)
@@ -52,3 +58,4 @@ public:
 
 #define THROW_IF_FAILED(hr)	if(FAILED(hr)){ throw HrException(hr); }
 #define HRESULT_ASSERT(hr)	_ASSERT_EXPR_A(SUCCEEDED(hr),HRESULT_TRACE_STRING(hr).c_str())
+#define WIN32_ASSERT(x)		HRESULT_ASSERT(HRESULT_FROM_WIN32(x))
