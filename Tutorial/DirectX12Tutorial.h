@@ -11,7 +11,7 @@ public:
 public:
 	struct Vertex
 	{
-		DirectX::XMFLOAT3 mPosition{};
+		DirectX::XMFLOAT2 mPosition{};
 		DirectX::XMFLOAT4 mColor{};
 	};
 

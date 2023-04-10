@@ -1,3 +1,5 @@
+#define CMD_CLOSE_IMMEDIATELY true
+
 #include "DirectX12Tutorial.h"
 #include "Misc.h"
 #include <vector>
@@ -59,6 +61,10 @@ void DirectX12Tutorial::CreateCmdObjects()
 		IID_PPV_ARGS(&mCmdList)
 	);
 	HRESULT_ASSERT(hr);
+#if CMD_CLOSE_IMMEDIATELY
+	hr = mCmdList->Close();
+	HRESULT_ASSERT(hr);
+#endif
 
 	D3D12_COMMAND_QUEUE_DESC cmdQueueDesc{};
 	//作成するコマンドタイプはDIRECT(汎用)を指定
@@ -221,7 +227,6 @@ void DirectX12Tutorial::CreateSwapChainAndRenderTargets(const HWND hWnd)
 
 		//ハンドルをインクリメントする
 		rtvCpuHandle.ptr += static_cast<SIZE_T>(mRtvIncrementSize);
-
 	}
 
 	//ビューポートの設定
@@ -320,54 +325,121 @@ void DirectX12Tutorial::CreateRootSignature()
 void DirectX12Tutorial::CreatePipelineState()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc{};
+	//ルート署名 シェーダーと互換性があるか判定されます。
 	graphicsPipelineStateDesc.pRootSignature = mRootSignature;
 	CSO vertexShader;
+	//頂点シェーダーの読み込み
 	LoadCSO("VertexShader.cso", &vertexShader);
+	//頂点シェーダーの設定
 	graphicsPipelineStateDesc.VS.pShaderBytecode = vertexShader.data();
 	graphicsPipelineStateDesc.VS.BytecodeLength = static_cast<SIZE_T>(vertexShader.size());
 	CSO pixelShader;
+	//ピクセルシェーダーの読み込み
 	LoadCSO("PixelShader.cso", &pixelShader);
+	//ピクセルシェーダーの設定
 	graphicsPipelineStateDesc.PS.pShaderBytecode = pixelShader.data();
 	graphicsPipelineStateDesc.PS.BytecodeLength = static_cast<SIZE_T>(pixelShader.size());
-
+	//その他のシェーダーは使用しない
 	graphicsPipelineStateDesc.DS = D3D12_SHADER_BYTECODE{ nullptr,0 };
 	graphicsPipelineStateDesc.HS = D3D12_SHADER_BYTECODE{ nullptr,0 };
 	graphicsPipelineStateDesc.GS = D3D12_SHADER_BYTECODE{ nullptr,0 };
-
+	//ストリーム出力は使用しないので無視してOK
 	graphicsPipelineStateDesc.StreamOutput = D3D12_STREAM_OUTPUT_DESC{};
-
+	//ブレンドの設定
 	SetBlendDesc(&graphicsPipelineStateDesc.BlendState);
+	//ブレンドのサンプルマスクの設定
 	graphicsPipelineStateDesc.SampleMask = UINT_MAX;
+	//ラスタライザーの設定
 	SetRasterizerDesc(&graphicsPipelineStateDesc.RasterizerState);
+	//深度ステンシルの設定
 	SetDepthStencilDesc(&graphicsPipelineStateDesc.DepthStencilState);
+	//頂点バッファのデータの情報を取得
 	D3D12_INPUT_ELEMENT_DESC inputElementDescs[]
 	{
-		{ "POSITION",	0,	 DXGI_FORMAT_R32G32B32_FLOAT,		0,	D3D12_APPEND_ALIGNED_ELEMENT,	D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,	0 },
-		{ "COLOR",		0,	 DXGI_FORMAT_R32G32B32A32_FLOAT,	0,	D3D12_APPEND_ALIGNED_ELEMENT,	D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,	0 },
+		{
+			/*
+				セマンティック名
+				シェーダーに送る際のデータの送り先の名前
+				OpenGLのuniform変数送るときの
+				glGetUniformLocation(GLuint program,const GLchar *name);
+				nameのような役割
+			*/
+			"POSITION",
+			/*
+				セマンティックインデックス
+				送り先が配列(例:COLOR[n])の場合
+				のｎを指定する
+			*/
+			0,
+			/*
+				送るデータのフォーマット
+				DXGI_FORMAT_R32_FLOAT -> 32bit実数型が1つ(x)
+				DXGI_FORMAT_R32G32_FLOAT -> 32bit実数型が2つ(x,y)
+				DXGI_FORMAT_R32G32B32_FLOAT -> 32bit実数型が3つ(x,y,z)
+				DXGI_FORMAT_R32G32B32A32_FLOAT -> 32bit実数型が4つ(x,y,z,w)
+			*/
+			DXGI_FORMAT_R32G32_FLOAT,
+			/*
+				頂点バッファのインデックス
+				以下の3つのバッファを送信す際、
+				どの頂点バッファからこのデータを取得するかの
+				インデックス
+				[0]頂点座標のみを送る頂点バッファ
+				[1]法線のみを送る頂点バッファ
+				[2]頂点色のみを送る頂点バッファ
+			*/
+			0,
+			/*
+				頂点データの先頭からこのデータまでの
+				オフセット値(byte単位)
+			*/
+			offsetof(Vertex,mPosition),
+			/*
+				頂点データの場合 D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA
+				インデックスデータの場合 D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA
+			*/
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+			//頂点バッファの場合0
+			0
+		},
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(Vertex,mColor), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
+	//入力データの設定
 	graphicsPipelineStateDesc.InputLayout.pInputElementDescs = inputElementDescs;
 	graphicsPipelineStateDesc.InputLayout.NumElements = ARRAYSIZE(inputElementDescs);
-
+	//ストリップの切り取り値
 	graphicsPipelineStateDesc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
+	//プリミティブトポロジーのタイプ(頂点情報の解釈方法)
 	graphicsPipelineStateDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	//書き込み先の数
 	graphicsPipelineStateDesc.NumRenderTargets = 1;
+	//書き込み先のフォーマット
 	graphicsPipelineStateDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	//深度バッファのフォーマット(使用しない場合DXGI_FORMAT_UNKNOWN)
 	graphicsPipelineStateDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
+	//書き込み先のMSAAの設定
 	graphicsPipelineStateDesc.SampleDesc.Count = 1;
 	graphicsPipelineStateDesc.SampleDesc.Quality = 0;
+	//ノードマスクは0
 	graphicsPipelineStateDesc.NodeMask = 0;
+	/*
+		キャッシュされたパイプラインステートオブジェクト(PSO)データ
+		同じ設定のPSOを複数作成するときに、最初に作成したPSOから
+		キャッシュすることで作成が高速になる(らしい)
+	*/
 	graphicsPipelineStateDesc.CachedPSO = D3D12_CACHED_PIPELINE_STATE{ nullptr,0 };
+	//フラグなし
 	graphicsPipelineStateDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-
+	//パイプラインステートオブジェクトの作成
 	HRESULT hr = mDevice->CreateGraphicsPipelineState(
 		&graphicsPipelineStateDesc,
-		IID_PPV_ARGS(&mPipelineState)
-	);
+		IID_PPV_ARGS(&mPipelineState));
 	HRESULT_ASSERT(hr);
 }
 
 void DirectX12Tutorial::CreateVertexBuffer()
 {
+	//ヒープのプロパティをアップロードの設定
 	D3D12_HEAP_PROPERTIES heapProperties{};
 	heapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;
 	heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
@@ -376,51 +448,68 @@ void DirectX12Tutorial::CreateVertexBuffer()
 	heapProperties.VisibleNodeMask = 1;
 
 	D3D12_RESOURCE_DESC resourceDesc{};
+	//リソースのデータのタイプ(バッファを設定)
 	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	//アライメントは0
 	resourceDesc.Alignment = 0;
+	//データサイズ
 	resourceDesc.Width = sizeof(Vertex) * 3;
+	//「Height」「DepthOrArraySize」「MipLevels」はバッファの場合1固定
 	resourceDesc.Height = 1;
 	resourceDesc.DepthOrArraySize = 1;
 	resourceDesc.MipLevels = 1;
+	//バッファの場合はDXGI_FORMAT_UNKNOWN固定
 	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+	//バッファの場合はMSAAは(Count = 1,Quality = 0)固定
 	resourceDesc.SampleDesc.Count = 1;
 	resourceDesc.SampleDesc.Quality = 0;
+	//バッファの場合以下略
 	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	//フラグなし
 	resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 	HRESULT hr = mDevice->CreateCommittedResource(
+		//ヒープのプロパティ
 		&heapProperties,
+		//ヒープのフラグなし
 		D3D12_HEAP_FLAG_NONE,
+		//リソースの設定
 		&resourceDesc,
+		//アップロードヒープの場合 D3D12_RESOURCE_STATE_GENERIC_READ
 		D3D12_RESOURCE_STATE_GENERIC_READ,
+		//バッファの場合以下略
 		nullptr,
+		//作成したバッファの保存先
 		IID_PPV_ARGS(&mVertexBuffer)
 	);
 	HRESULT_ASSERT(hr);
 
+	//リソースからデータのアドレスを取得
 	Vertex* vertices = nullptr;
 	hr = mVertexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&vertices));
 	HRESULT_ASSERT(hr);
 
+	//頂点データの設定
+
+	float offsetX = mViewport.Width / 6.0f;
+	float offsetY = mViewport.Height / 6.0f;
+
 	vertices[0].mPosition.x = mViewport.Width * 0.5f;
-	vertices[0].mPosition.y = 0.0f;
-	vertices[0].mPosition.z = 0.0f;
+	vertices[0].mPosition.y = offsetY;
 	vertices[0].mColor.x = 1.0f;
 	vertices[0].mColor.y = 0.0f;
 	vertices[0].mColor.z = 0.0f;
 	vertices[0].mColor.w = 1.0f;
 
-	vertices[1].mPosition.x = 0.0f;
-	vertices[1].mPosition.y = mViewport.Height;
-	vertices[1].mPosition.z = 0.0f;
+	vertices[1].mPosition.x = offsetX;
+	vertices[1].mPosition.y = mViewport.Height - offsetY;
 	vertices[1].mColor.x = 0.0f;
 	vertices[1].mColor.y = 1.0f;
 	vertices[1].mColor.z = 0.0f;
 	vertices[1].mColor.w = 1.0f;
 
-	vertices[2].mPosition.x = mViewport.Width;
-	vertices[2].mPosition.y = mViewport.Height;
-	vertices[2].mPosition.z = 0.0f;
+	vertices[2].mPosition.x = mViewport.Width - offsetX;
+	vertices[2].mPosition.y = mViewport.Height - offsetY;
 	vertices[2].mColor.x = 0.0f;
 	vertices[2].mColor.y = 0.0f;
 	vertices[2].mColor.z = 1.0f;
@@ -461,32 +550,45 @@ void DirectX12Tutorial::BeginRendering()
 		&resourceBarrier
 	);
 
+	//書き込み先の設定
 	mCmdList->OMSetRenderTargets(
 		1,
 		&mBackBaffers[mBackBufferIndex].mCpuHandle,
 		TRUE,
 		nullptr
 	);
+	//書き込み先のクリア
 	mCmdList->ClearRenderTargetView(
 		mBackBaffers[mBackBufferIndex].mCpuHandle,
 		mClearValue.Color,
 		0,
 		nullptr
 	);
+	//ビューポートの設定
 	mCmdList->RSSetViewports(1, &mViewport);
+	//シザー矩形の設定
 	mCmdList->RSSetScissorRects(1, &mScissorRect);
 }
 
 void DirectX12Tutorial::DrawPolygon()
 {
+	//パイプラインステートの設定
 	mCmdList->SetPipelineState(mPipelineState);
+	//ルート署名の設定
 	mCmdList->SetGraphicsRootSignature(mRootSignature);
+
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
+	//頂点バッファのアドレス
 	vertexBufferView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
+	//頂点バッファの大きさ
 	vertexBufferView.SizeInBytes = sizeof(Vertex) * 3;
+	//1頂点あたりの大きさ
 	vertexBufferView.StrideInBytes = sizeof(Vertex);
+	//頂点バッファの設定
 	mCmdList->IASetVertexBuffers(0, 1, &vertexBufferView);
+	//プリミティブの解釈方法
 	mCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//ドローコール
 	mCmdList->DrawInstanced(3, 1, 0, 0);
 }
 
@@ -537,7 +639,37 @@ void DirectX12Tutorial::ExecuteCmdLists()
 
 void DirectX12Tutorial::WaitForPreviousFrame()
 {
+	/*
+		(現在積まれている)コマンドキューの最後に
+		フェンス内の数値を入力した数値にする
+		という命令を送信
+	*/
 	HRESULT hr = mCmdQueue->Signal(mFence, ++mSignalValue);
+	HRESULT_ASSERT(hr);
+
+	//待機する2通りの方法の違いと問題点
+#if 0
+	//ループする方法
+	/*
+		フェンスの使用方法次第では
+		while (mSignalValue != mFence->GetCompletedValue());
+		では機能しない場合がある。
+		Signal後必ず待機する場合は問題ないが
+		mSignalValue = 0;
+		mCmdQueue->Signal(mFence, ++mSignalValue);
+		//mSignalValueが1に処理済みの値が0
+		~~~何かしらの処理~~~
+		mCmdQueue->Signal(mFence, ++mSignalValue);
+		//mSignalValueが2に一つ前のシグナルが完了し処理済みの値が1に
+
+		//待機
+		while (mSignalValue != mFence->GetCompletedValue());
+		//最後のシグナル時の値になっていないがmSignalValueと
+		//処理済みの値とは違うので素通りする
+	*/
+	while (mSignalValue > mFence->GetCompletedValue());
+#else
+	//イベントを使用する方法(確実性がある)
 	HANDLE fenceEvent = CreateEvent(0, 0, 0, 0);
 	assert(fenceEvent != nullptr);
 	hr = mFence->SetEventOnCompletion(mSignalValue, fenceEvent);
@@ -545,6 +677,7 @@ void DirectX12Tutorial::WaitForPreviousFrame()
 	WaitForSingleObject(fenceEvent, INFINITE);
 	WIN32_ASSERT(GetLastError());
 	CloseHandle(fenceEvent);
+#endif
 }
 
 void DirectX12Tutorial::Present()
@@ -592,30 +725,63 @@ DirectX12Tutorial::DirectX12Tutorial(const HWND hWnd)
 	HRESULT_ASSERT(hr);
 
 #if defined(DEBUG) | defined(_DEBUG)
+	//デバックレイヤーの適用(必ずデバイス作成前に行う)
 	ApplyDebugLayer();
 #endif
+	//デバイス作成
 	CreateDevice();
+	//コマンド関係の作成
 	CreateCmdObjects();
+	//スワップチェインと書き込み先の作成
 	CreateSwapChainAndRenderTargets(hWnd);
+	//フェンスの作成
 	CreateFence();
+	//ルート署名の作成
 	CreateRootSignature();
+	//パイプラインステートの作成
 	CreatePipelineState();
+	//頂点バッファの作成
 	CreateVertexBuffer();
 }
 
 void DirectX12Tutorial::Render()
 {
-	BeginRendering();
-	DrawPolygon();
-	EndRendering();
-	ExecuteCmdLists();
-	WaitForPreviousFrame();
-	Present();
+	/*
+		コマンドのリセット
+		コマンドリストを作成したあとすぐにクローズすれば
+		フレームの最初に実行する
+		クローズとリセットが交互に行われるようにする
+		作成した直後はリセットした状態である
+	*/
+#if CMD_CLOSE_IMMEDIATELY
 	CmdReset();
+#endif
+	//描画開始処理
+	BeginRendering();
+	//ポリゴンの描画
+	DrawPolygon();
+	//描画終了処理
+	EndRendering();
+	//コマンドリストの実行
+	ExecuteCmdLists();
+	//描画が完了するまで待機
+	WaitForPreviousFrame();
+	//ウィンドウに送信
+	Present();
+#if !CMD_CLOSE_IMMEDIATELY
+	CmdReset();
+#endif
 }
 
 DirectX12Tutorial::~DirectX12Tutorial()
 {
+	/*
+		コマンドキューで処理を行っている最中に
+		データが消えるのを防ぐため
+		コマンドキューの中身がなくなるまで待機
+	*/
+	WaitForPreviousFrame();
+	//随時開放
 	SAFE_RELEASE(mDevice);
 	SAFE_RELEASE(mCmdList);
 	SAFE_RELEASE(mCmdAllocator);
@@ -634,11 +800,9 @@ DirectX12Tutorial::~DirectX12Tutorial()
 	CoUninitialize();
 }
 
-//
-
-void LoadCSO(const char* filePass, CSO* cso)
+void LoadCSO(const char* filePath, CSO* cso)
 {
-	std::ifstream ifs{ filePass ,std::ios::binary };
+	std::ifstream ifs{ filePath ,std::ios::binary };
 	assert(ifs.is_open() && "file not found!!");
 
 	//ファイルサイズを取得

@@ -8,7 +8,7 @@ int main(char* [], int)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 	WindowDesc windowDesc{};
-	windowDesc.mCaption = L"DirectX12Tutorial";
+	windowDesc.mCaption = L"DirectX12で三角形を描画する簡単なサンプル";
 	Window* window = _NEW Window(windowDesc);
 	DirectX12Tutorial* tutorial = _NEW DirectX12Tutorial(window->GetHandle());
 
