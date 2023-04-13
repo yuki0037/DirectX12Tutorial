@@ -1,9 +1,11 @@
-#include "Window.h"
+﻿#include "Window.h"
 #pragma comment( lib, "winmm.lib" )
 
 LRESULT CALLBACK Window::WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	LONG_PTR user = GetWindowLongPtr(hWnd, GWLP_USERDATA);
+	RECT rect{};
+
 	if (msg == WM_DESTROY)
 	{
 		PostMessage(hWnd, WM_CLOSE, wParam, lParam);
@@ -12,13 +14,25 @@ LRESULT CALLBACK Window::WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPA
 	{
 		reinterpret_cast<Window*>(user)->mClosed = TRUE;
 	}
-	else if (msg == WM_MOVE && (user != 0))
+	else if (msg == WM_SIZE && (user != 0) && GetClientRect(hWnd, &rect))
 	{
-		RECT rect{};
-		GetWindowRect(hWnd, &rect);
+		WindowDesc* winDesc = &reinterpret_cast<Window*>(user)->mWindowDesc;
+		winDesc->mWidth = rect.right - rect.left;
+		winDesc->mHeight = rect.bottom - rect.top;
+	}
+	else if (msg == WM_MOVE && (user != 0) && GetWindowRect(hWnd, &rect))
+	{
 		WindowDesc* winDesc = &reinterpret_cast<Window*>(user)->mWindowDesc;
 		winDesc->mX = rect.left;
 		winDesc->mY = rect.top;
+	}
+	else if (msg == WM_ENTERSIZEMOVE && (user != 0))
+	{
+		reinterpret_cast<Window*>(user)->mTimer.BeginSleeping();
+	}
+	else if (msg == WM_EXITSIZEMOVE && (user != 0))
+	{
+		reinterpret_cast<Window*>(user)->mTimer.EndSleeping();
 	}
 
 	if (user != 0)
@@ -94,20 +108,37 @@ Window::Window(WindowDesc windowDesc)
 	SetWindowLongPtr(mHandle, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 }
 
+bool Window::IsActivate() const
+{
+	return mHandle == GetActiveWindow();
+}
+
+double Window::GetElapsedTime() const
+{
+	return mTimer.GetElapsedTime();
+}
+
 BOOL Window::Dispatch()
 {
 	if (mClosed) { return FALSE; }
 	MSG msg = {};
-	while (PeekMessageW(&msg, mHandle, 0, 0, PM_REMOVE))
+	while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
 	{
-		if (msg.message == WM_CLOSE)
+		if ((msg.message == WM_CLOSE) &&
+			(msg.hwnd == mHandle))
 		{
 			mClosed = TRUE;
 		}
 		TranslateMessage(&msg);
 		DispatchMessageW(&msg);
 	}
+	mTimer.Tick();
 	return !mClosed;
+}
+
+BOOL Window::PostMsg(UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	return PostMessage(mHandle, msg, wParam, lParam);
 }
 
 BOOL Window::SetCaption(const std::wstring& newCaption)

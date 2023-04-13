@@ -1,4 +1,4 @@
-#define CMD_CLOSE_IMMEDIATELY true
+﻿#define CMD_CLOSE_IMMEDIATELY true
 
 #include "DirectX12Tutorial.h"
 #include "Misc.h"
@@ -44,7 +44,7 @@ void DirectX12Tutorial::CreateCmdObjects()
 		//作成するコマンドタイプはDIRECT(汎用)を指定
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
 		//作成したコマンドアロケーターの受け取り先
-		IID_PPV_ARGS(&mCmdAllocator)
+		IID_PPV_ARGS(&mCmdAllocatorForDrawing)
 	);
 	HRESULT_ASSERT(hr);
 
@@ -54,15 +54,33 @@ void DirectX12Tutorial::CreateCmdObjects()
 		//作成するコマンドタイプはDIRECT(汎用)を指定
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
 		//コマンドアロケーターは先ほど作成したものを指定
-		mCmdAllocator,
+		mCmdAllocatorForDrawing,
 		//初期パイプラインステートは指定しない
 		nullptr,
 		//作成したコマンドリストの受け取り先
-		IID_PPV_ARGS(&mCmdList)
+		IID_PPV_ARGS(&mCmdListForDrawing)
 	);
 	HRESULT_ASSERT(hr);
+
+	hr = mDevice->CreateCommandAllocator(
+		D3D12_COMMAND_LIST_TYPE_DIRECT,
+		IID_PPV_ARGS(&mCmdAllocatorForCopy)
+	);
+	HRESULT_ASSERT(hr);
+
+	hr = mDevice->CreateCommandList(
+		0,
+		D3D12_COMMAND_LIST_TYPE_DIRECT,
+		mCmdAllocatorForCopy,
+		nullptr,
+		IID_PPV_ARGS(&mCmdListForCopy)
+	);
+	HRESULT_ASSERT(hr);
+
 #if CMD_CLOSE_IMMEDIATELY
-	hr = mCmdList->Close();
+	hr = mCmdListForDrawing->Close();
+	HRESULT_ASSERT(hr);
+	hr = mCmdListForCopy->Close();
 	HRESULT_ASSERT(hr);
 #endif
 
@@ -145,7 +163,6 @@ void DirectX12Tutorial::CreateSwapChainAndRenderTargets(const HWND hWnd)
 	swapChainFullscreenDesc.Scaling = DXGI_MODE_SCALING_STRETCHED;
 	//ウィンドウモードを指定
 	swapChainFullscreenDesc.Windowed = TRUE;
-
 
 	IDXGISwapChain1* tempSwapChain = nullptr;
 	hr = dxgiFactory->CreateSwapChainForHwnd(
@@ -322,7 +339,7 @@ void DirectX12Tutorial::CreateRootSignature()
 	SAFE_RELEASE(errorBlob);
 }
 
-void DirectX12Tutorial::CreatePipelineState()
+void DirectX12Tutorial::CreatePipelineState2D()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc{};
 	//ルート署名 シェーダーと互換性があるか判定されます。
@@ -433,11 +450,11 @@ void DirectX12Tutorial::CreatePipelineState()
 	//パイプラインステートオブジェクトの作成
 	HRESULT hr = mDevice->CreateGraphicsPipelineState(
 		&graphicsPipelineStateDesc,
-		IID_PPV_ARGS(&mPipelineState));
+		IID_PPV_ARGS(&mPipelineState2D));
 	HRESULT_ASSERT(hr);
 }
 
-void DirectX12Tutorial::CreateVertexBuffer()
+void DirectX12Tutorial::CreateVertexBuffer2D()
 {
 	//ヒープのプロパティをアップロードの設定
 	D3D12_HEAP_PROPERTIES heapProperties{};
@@ -480,13 +497,13 @@ void DirectX12Tutorial::CreateVertexBuffer()
 		//バッファの場合以下略
 		nullptr,
 		//作成したバッファの保存先
-		IID_PPV_ARGS(&mVertexBuffer)
+		IID_PPV_ARGS(&mVertexBuffer2D)
 	);
 	HRESULT_ASSERT(hr);
 
 	//リソースからデータのアドレスを取得
 	Vertex* vertices = nullptr;
-	hr = mVertexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&vertices));
+	hr = mVertexBuffer2D->Map(0, nullptr, reinterpret_cast<void**>(&vertices));
 	HRESULT_ASSERT(hr);
 
 	//頂点データの設定
@@ -522,7 +539,7 @@ void DirectX12Tutorial::CreateVertexBuffer()
 		vertices[i].mPosition.y = 1.0f - 2.0f * vertices[i].mPosition.y / mViewport.Height;
 	}
 
-	mVertexBuffer->Unmap(0, nullptr);
+	mVertexBuffer2D->Unmap(0, nullptr);
 }
 
 void DirectX12Tutorial::BeginRendering()
@@ -543,7 +560,7 @@ void DirectX12Tutorial::BeginRendering()
 	//リソースバリアの遷移後の状態
 	resourceBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 
-	mCmdList->ResourceBarrier(
+	mCmdListForDrawing->ResourceBarrier(
 		//設定するリソースバリアの数
 		1,
 		//設定するリソースバリア
@@ -551,45 +568,45 @@ void DirectX12Tutorial::BeginRendering()
 	);
 
 	//書き込み先の設定
-	mCmdList->OMSetRenderTargets(
+	mCmdListForDrawing->OMSetRenderTargets(
 		1,
 		&mBackBaffers[mBackBufferIndex].mCpuHandle,
 		TRUE,
 		nullptr
 	);
 	//書き込み先のクリア
-	mCmdList->ClearRenderTargetView(
+	mCmdListForDrawing->ClearRenderTargetView(
 		mBackBaffers[mBackBufferIndex].mCpuHandle,
 		mClearValue.Color,
 		0,
 		nullptr
 	);
 	//ビューポートの設定
-	mCmdList->RSSetViewports(1, &mViewport);
+	mCmdListForDrawing->RSSetViewports(1, &mViewport);
 	//シザー矩形の設定
-	mCmdList->RSSetScissorRects(1, &mScissorRect);
+	mCmdListForDrawing->RSSetScissorRects(1, &mScissorRect);
 }
 
-void DirectX12Tutorial::DrawPolygon()
+void DirectX12Tutorial::DrawPolygon2D()
 {
 	//パイプラインステートの設定
-	mCmdList->SetPipelineState(mPipelineState);
+	mCmdListForDrawing->SetPipelineState(mPipelineState2D);
 	//ルート署名の設定
-	mCmdList->SetGraphicsRootSignature(mRootSignature);
+	mCmdListForDrawing->SetGraphicsRootSignature(mRootSignature);
 
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
 	//頂点バッファのアドレス
-	vertexBufferView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
+	vertexBufferView.BufferLocation = mVertexBuffer2D->GetGPUVirtualAddress();
 	//頂点バッファの大きさ
 	vertexBufferView.SizeInBytes = sizeof(Vertex) * 3;
 	//1頂点あたりの大きさ
 	vertexBufferView.StrideInBytes = sizeof(Vertex);
 	//頂点バッファの設定
-	mCmdList->IASetVertexBuffers(0, 1, &vertexBufferView);
+	mCmdListForDrawing->IASetVertexBuffers(0, 1, &vertexBufferView);
 	//プリミティブの解釈方法
-	mCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	mCmdListForDrawing->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	//ドローコール
-	mCmdList->DrawInstanced(3, 1, 0, 0);
+	mCmdListForDrawing->DrawInstanced(3, 1, 0, 0);
 }
 
 void DirectX12Tutorial::EndRendering()
@@ -608,24 +625,27 @@ void DirectX12Tutorial::EndRendering()
 	//リソースバリアの遷移後の状態
 	resourceBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 
-	mCmdList->ResourceBarrier(
+	mCmdListForDrawing->ResourceBarrier(
 		//設定するリソースバリアの数
 		1,
 		//設定するリソースバリア
 		&resourceBarrier
 	);
-
-	//コマンドリストを閉じる
-	HRESULT hr = mCmdList->Close();
-	HRESULT_ASSERT(hr);
 }
 
 void DirectX12Tutorial::ExecuteCmdLists()
 {
+	//コマンドリストを閉じる
+	HRESULT hr = mCmdListForCopy->Close();
+	HRESULT_ASSERT(hr);
+	hr = mCmdListForDrawing->Close();
+	HRESULT_ASSERT(hr);
+
 	//実行するコマンドリストをひとまとめにする
 	ID3D12CommandList* const cmdLists[]
 	{
-		mCmdList
+		mCmdListForCopy,
+		mCmdListForDrawing
 	};
 
 	//実行
@@ -694,27 +714,43 @@ void DirectX12Tutorial::Present()
 void DirectX12Tutorial::CmdReset()
 {
 	//コマンドアロケーターをリセット
-	HRESULT hr = mCmdAllocator->Reset();
+	HRESULT hr = mCmdAllocatorForDrawing->Reset();
 	HRESULT_ASSERT(hr);
 	//コマンドリストにコマンドアロケーターをセット
-	hr = mCmdList->Reset(mCmdAllocator, nullptr);
+	hr = mCmdListForDrawing->Reset(mCmdAllocatorForDrawing, nullptr);
+	HRESULT_ASSERT(hr);
+	hr = mCmdAllocatorForCopy->Reset();
+	HRESULT_ASSERT(hr);
+	hr = mCmdListForCopy->Reset(mCmdAllocatorForCopy, nullptr);
 	HRESULT_ASSERT(hr);
 }
 
 DirectX12Tutorial::DirectX12Tutorial(const HWND hWnd)
 	:mDevice(nullptr),
-	mCmdList(nullptr),
-	mCmdAllocator(nullptr),
+	mCmdListForDrawing(nullptr),
+	mCmdAllocatorForDrawing(nullptr),
+	mCmdListForCopy(nullptr),
+	mCmdAllocatorForCopy(nullptr),
 	mCmdQueue(nullptr),
 	mFence(nullptr),
-	mPipelineState(nullptr),
+	mPipelineState2D(nullptr),
+	mPipelineState3D(nullptr),
 	mRootSignature(nullptr),
 	mRtvDescriptorHeap(nullptr),
+	mDsvDescriptorHeap(nullptr),
+	mCbvAndSrvDescriptorHeap(nullptr),
+	mSamplerDescriptorHeap(nullptr),
 	mClearValue(),
 	mViewport(),
 	mScissorRect(),
 	mBackBaffers(),
-	mVertexBuffer(nullptr),
+	mDepthBuffer(nullptr),
+	mConstantBuffer(nullptr),
+	mTexture(nullptr),
+	mTextureUploadBuffer(nullptr),
+	mVertexBuffer2D(nullptr),
+	mVertexBuffer3D(nullptr),
+	mIndexBuffer3D(nullptr),
 	mSwapChain(nullptr),
 	mSignalValue(0),
 	mRtvIncrementSize(0),
@@ -739,9 +775,9 @@ DirectX12Tutorial::DirectX12Tutorial(const HWND hWnd)
 	//ルート署名の作成
 	CreateRootSignature();
 	//パイプラインステートの作成
-	CreatePipelineState();
+	CreatePipelineState2D();
 	//頂点バッファの作成
-	CreateVertexBuffer();
+	CreateVertexBuffer2D();
 }
 
 void DirectX12Tutorial::Render()
@@ -759,7 +795,7 @@ void DirectX12Tutorial::Render()
 	//描画開始処理
 	BeginRendering();
 	//ポリゴンの描画
-	DrawPolygon();
+	DrawPolygon2D();
 	//描画終了処理
 	EndRendering();
 	//コマンドリストの実行
@@ -783,18 +819,30 @@ DirectX12Tutorial::~DirectX12Tutorial()
 	WaitForPreviousFrame();
 	//随時開放
 	SAFE_RELEASE(mDevice);
-	SAFE_RELEASE(mCmdList);
-	SAFE_RELEASE(mCmdAllocator);
+	SAFE_RELEASE(mCmdListForDrawing);
+	SAFE_RELEASE(mCmdAllocatorForDrawing);
+	SAFE_RELEASE(mCmdListForCopy);
+	SAFE_RELEASE(mCmdAllocatorForCopy);
 	SAFE_RELEASE(mCmdQueue);
 	SAFE_RELEASE(mFence);
-	SAFE_RELEASE(mPipelineState);
+	SAFE_RELEASE(mPipelineState2D);
+	SAFE_RELEASE(mPipelineState3D);
 	SAFE_RELEASE(mRootSignature);
 	SAFE_RELEASE(mRtvDescriptorHeap);
+	SAFE_RELEASE(mDsvDescriptorHeap);
+	SAFE_RELEASE(mCbvAndSrvDescriptorHeap);
+	SAFE_RELEASE(mSamplerDescriptorHeap);
 	for (BackBuffer& backBaffer : mBackBaffers)
 	{
 		SAFE_RELEASE(backBaffer.mResource);
 	}
-	SAFE_RELEASE(mVertexBuffer);
+	SAFE_RELEASE(mDepthBuffer);
+	SAFE_RELEASE(mConstantBuffer);
+	SAFE_RELEASE(mTexture);
+	SAFE_RELEASE(mTextureUploadBuffer);
+	SAFE_RELEASE(mVertexBuffer2D);
+	SAFE_RELEASE(mVertexBuffer3D);
+	SAFE_RELEASE(mIndexBuffer3D);
 	SAFE_RELEASE(mSwapChain);
 	//ComObjectを触るうえでの儀式のようなもの
 	CoUninitialize();

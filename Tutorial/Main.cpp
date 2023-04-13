@@ -1,6 +1,7 @@
-#include "Window.h"
+ï»¿#include "Window.h"
 #include "DirectX12Tutorial.h"
 #include "Misc.h"
+#include <sstream>
 
 int main(char* [], int)
 {
@@ -8,12 +9,26 @@ int main(char* [], int)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 	WindowDesc windowDesc{};
-	windowDesc.mCaption = L"DirectX12‚ÅŽOŠpŒ`‚ð•`‰æ‚·‚éŠÈ’P‚ÈƒTƒ“ƒvƒ‹";
+	windowDesc.mWidth = 640;
+	windowDesc.mHeight = 640;
+	windowDesc.mCaption = L"DirectX12ã§ä¸‰è§’å½¢ã‚’æç”»ã™ã‚‹ç°¡å˜ãªã‚µãƒ³ãƒ—ãƒ«";
+	windowDesc.mWindowStyle = WS_OVERLAPPEDWINDOW;
 	Window* window = _NEW Window(windowDesc);
 	DirectX12Tutorial* tutorial = _NEW DirectX12Tutorial(window->GetHandle());
 
 	while (window->Dispatch())
 	{
+		std::wstringstream ss;
+		windowDesc = window->GetWindowDesc();
+		ss << std::boolalpha << window->IsActivate() << L" : ";
+		ss << L"[" << windowDesc.mWidth << L"*" << windowDesc.mHeight << L"]";
+		ss << L"x : " << windowDesc.mX << L" y : " << windowDesc.mY;
+		window->SetCaption(ss.str());
+		if (GetKeyState(VK_ESCAPE) & 0x80)
+		{
+			window->PostMsg(WM_CLOSE, 0, 0);
+		}
+
 		tutorial->Render();
 	}
 

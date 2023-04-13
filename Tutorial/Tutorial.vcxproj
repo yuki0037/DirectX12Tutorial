@@ -145,12 +145,14 @@
   <ItemGroup>
     <ClCompile Include="DescriptorHeap.cpp" />
     <ClCompile Include="DirectX12Tutorial.cpp" />
+    <ClCompile Include="HighResolutionTimer.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DescriptorHeap.h" />
     <ClInclude Include="DirectX12Tutorial.h" />
+    <ClInclude Include="HighResolutionTimer.h" />
     <ClInclude Include="Misc.h" />
     <ClInclude Include="Window.h" />
   </ItemGroup>

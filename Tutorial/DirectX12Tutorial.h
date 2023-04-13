@@ -1,18 +1,31 @@
-#pragma once
+Ôªø#pragma once
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <array>
 #include <DirectXMath.h>
 
+using namespace DirectX;
+
 class DirectX12Tutorial
 {
 public:
 	static constexpr UINT MBackBufferCount = 3;
+	static constexpr UINT MSRVRootParameterIndex = 0;
+	static constexpr UINT MCBVRootParameterIndex = 1;
+	static constexpr UINT MSamplerRootParameterIndex = 2;
 public:
 	struct Vertex
 	{
-		DirectX::XMFLOAT2 mPosition{};
-		DirectX::XMFLOAT4 mColor{};
+		XMFLOAT3 mPosition{};
+		XMFLOAT3 mNormal{};
+		XMFLOAT2 mTexcoords[4]{};
+		XMFLOAT4 mColor{};
+	};
+
+	struct Scene
+	{
+		XMFLOAT4X4 mViewProj{};
+		XMFLOAT4X4 mWorld{};
 	};
 
 	struct BackBuffer
@@ -23,42 +36,58 @@ public:
 
 	using BackBaffers = std::array<BackBuffer, MBackBufferCount>;
 private:
-	//DirectX12ä÷òA
+	//DirectX12Èñ¢ÈÄ£
 	ID3D12Device* mDevice;
-	ID3D12GraphicsCommandList* mCmdList;
-	ID3D12CommandAllocator* mCmdAllocator;
+	ID3D12GraphicsCommandList* mCmdListForDrawing;
+	ID3D12CommandAllocator* mCmdAllocatorForDrawing;
+	ID3D12GraphicsCommandList* mCmdListForCopy;
+	ID3D12CommandAllocator* mCmdAllocatorForCopy;
 	ID3D12CommandQueue* mCmdQueue;
 	ID3D12Fence* mFence;
-	ID3D12PipelineState* mPipelineState;
+	ID3D12PipelineState* mPipelineState2D;
+	ID3D12PipelineState* mPipelineState3D;
 	ID3D12RootSignature* mRootSignature;
 	ID3D12DescriptorHeap* mRtvDescriptorHeap;
+	ID3D12DescriptorHeap* mDsvDescriptorHeap;
+	ID3D12DescriptorHeap* mCbvAndSrvDescriptorHeap;
+	ID3D12DescriptorHeap* mSamplerDescriptorHeap;
 	D3D12_CLEAR_VALUE mClearValue;
 	D3D12_VIEWPORT mViewport;
 	D3D12_RECT mScissorRect;
 	BackBaffers mBackBaffers;
-	ID3D12Resource* mVertexBuffer;
+	ID3D12Resource* mDepthBuffer;
+	ID3D12Resource* mConstantBuffer;
+	ID3D12Resource* mTexture;
+	ID3D12Resource* mTextureUploadBuffer;
+	ID3D12Resource* mVertexBuffer2D;
+	ID3D12Resource* mVertexBuffer3D;
+	ID3D12Resource* mIndexBuffer3D;
 
-	//DXGIä÷òA
+	//DXGIÈñ¢ÈÄ£
 	IDXGISwapChain3* mSwapChain;
 
-	//ÇªÇÃëº
+	//„Åù„ÅÆ‰ªñ
 	UINT64 mSignalValue;
 	UINT mRtvIncrementSize;
 	UINT mBackBufferIndex;
 private:
-	//èâä˙âªä÷òAÇÃèàóù
+	//ÂàùÊúüÂåñÈñ¢ÈÄ£„ÅÆÂá¶ÁêÜ
 	void ApplyDebugLayer();
 	void CreateDevice();
 	void CreateCmdObjects();
 	void CreateSwapChainAndRenderTargets(const HWND);
+	void CreateDepthStencilView(const HWND);
 	void CreateFence();
 	void CreateRootSignature();
-	void CreatePipelineState();
-	void CreateVertexBuffer();
+	void CreatePipelineState2D();
+	void CreatePipelineState3D();
+	void CreateVertexBuffer2D();
+	void CreateVertexBuffer3D();
 
-	//çXêVä÷òAÇÃèàóù
+	//Êõ¥Êñ∞Èñ¢ÈÄ£„ÅÆÂá¶ÁêÜ
 	void BeginRendering();
-	void DrawPolygon();
+	void DrawPolygon2D();
+	void DrawPolygon3D();
 	void EndRendering();
 	void ExecuteCmdLists();
 	void WaitForPreviousFrame();
