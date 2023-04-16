@@ -2,6 +2,7 @@
 #include "DirectX12Tutorial.h"
 #include "Misc.h"
 #include <sstream>
+#include <iostream>
 
 int main(char* [], int)
 {
@@ -15,6 +16,15 @@ int main(char* [], int)
 	windowDesc.mWindowStyle = WS_OVERLAPPEDWINDOW;
 	Window* window = _NEW Window(windowDesc);
 	DirectX12Tutorial* tutorial = _NEW DirectX12Tutorial(window->GetHandle());
+
+	std::cout << HRESULT_TRACE_STRING(-3) << std::endl;
+	std::cout << HRESULT_TRACE_STRING(-2) << std::endl;
+	std::cout << HRESULT_TRACE_STRING(-1) << std::endl;
+	std::cout << HRESULT_TRACE_STRING(0) << std::endl;
+	std::cout << HRESULT_TRACE_STRING(1) << std::endl;
+	std::cout << HRESULT_TRACE_STRING(2) << std::endl;
+	std::cout << HRESULT_TRACE_STRING(3) << std::endl;
+	std::cout << HRESULT_TRACE_STRING(E_NOTIMPL) << std::endl;
 
 	while (window->Dispatch())
 	{
