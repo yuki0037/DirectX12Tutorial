@@ -17,15 +17,6 @@ int main(char* [], int)
 	Window* window = _NEW Window(windowDesc);
 	DirectX12Tutorial* tutorial = _NEW DirectX12Tutorial(window->GetHandle());
 
-	std::cout << HRESULT_TRACE_STRING(-3) << std::endl;
-	std::cout << HRESULT_TRACE_STRING(-2) << std::endl;
-	std::cout << HRESULT_TRACE_STRING(-1) << std::endl;
-	std::cout << HRESULT_TRACE_STRING(0) << std::endl;
-	std::cout << HRESULT_TRACE_STRING(1) << std::endl;
-	std::cout << HRESULT_TRACE_STRING(2) << std::endl;
-	std::cout << HRESULT_TRACE_STRING(3) << std::endl;
-	std::cout << HRESULT_TRACE_STRING(E_NOTIMPL) << std::endl;
-
 	while (window->Dispatch())
 	{
 		std::wstringstream ss;

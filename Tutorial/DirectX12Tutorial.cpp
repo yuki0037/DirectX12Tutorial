@@ -9,6 +9,7 @@
 #pragma comment(lib,"dxgi.lib")
 
 using CSO = std::vector<BYTE>;
+
 void LoadCSO(const char*, CSO*);
 void SetBlendDesc(D3D12_BLEND_DESC*);
 void SetRasterizerDesc(D3D12_RASTERIZER_DESC*);
@@ -264,6 +265,72 @@ void DirectX12Tutorial::CreateSwapChainAndRenderTargets(const HWND hWnd)
 	SAFE_RELEASE(dxgiFactory);
 }
 
+void DirectX12Tutorial::CreateDepthStencilView()
+{
+	D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc{};
+	//ヒープ記述子はRTVを指定
+	descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	//バックバッファの数用意する
+	descriptorHeapDesc.NumDescriptors = 1;
+	//フラグ指定なし
+	descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	//ノードマスクは0を指定
+	descriptorHeapDesc.NodeMask = 0;
+
+	HRESULT hr = mDevice->CreateDescriptorHeap(
+		//ヒープ記述子の設定
+		&descriptorHeapDesc,
+		//作成したヒープ記述子の受け取り先
+		IID_PPV_ARGS(&mDsvDescriptorHeap)
+	);
+	HRESULT_ASSERT(hr);
+
+	D3D12_HEAP_PROPERTIES heapProperties{};
+	heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
+	heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heapProperties.CreationNodeMask = 1;
+	heapProperties.VisibleNodeMask = 1;
+
+	D3D12_RESOURCE_DESC resourceDesc{};
+	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	resourceDesc.Alignment = 0;
+	resourceDesc.Width = static_cast<UINT64>(mViewport.Width);
+	resourceDesc.Height = static_cast<UINT>(mViewport.Height);
+	resourceDesc.DepthOrArraySize = 1;
+	resourceDesc.MipLevels = 1;
+	resourceDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	resourceDesc.SampleDesc.Count = 1;
+	resourceDesc.SampleDesc.Quality = 0;
+	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+	D3D12_CLEAR_VALUE clearValue{};
+	clearValue.Format = resourceDesc.Format;
+	clearValue.DepthStencil.Depth = 1.0f;
+	clearValue.DepthStencil.Stencil = 0;
+	hr = mDevice->CreateCommittedResource(
+		&heapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&resourceDesc,
+		D3D12_RESOURCE_STATE_DEPTH_WRITE,
+		&clearValue,
+		IID_PPV_ARGS(&mDepthBuffer)
+	);
+	HRESULT_ASSERT(hr);
+
+	mDevice->CreateDepthStencilView(
+		mDepthBuffer,
+		nullptr,
+		mDsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart()
+	);
+}
+
+void DirectX12Tutorial::LoadTexture()
+{
+
+}
+
 void DirectX12Tutorial::CreateFence()
 {
 	HRESULT hr = mDevice->CreateFence(
@@ -346,13 +413,13 @@ void DirectX12Tutorial::CreatePipelineState2D()
 	graphicsPipelineStateDesc.pRootSignature = mRootSignature;
 	CSO vertexShader;
 	//頂点シェーダーの読み込み
-	LoadCSO("VertexShader.cso", &vertexShader);
+	LoadCSO("VertexShader2D.cso", &vertexShader);
 	//頂点シェーダーの設定
 	graphicsPipelineStateDesc.VS.pShaderBytecode = vertexShader.data();
 	graphicsPipelineStateDesc.VS.BytecodeLength = static_cast<SIZE_T>(vertexShader.size());
 	CSO pixelShader;
 	//ピクセルシェーダーの読み込み
-	LoadCSO("PixelShader.cso", &pixelShader);
+	LoadCSO("PixelShader2D.cso", &pixelShader);
 	//ピクセルシェーダーの設定
 	graphicsPipelineStateDesc.PS.pShaderBytecode = pixelShader.data();
 	graphicsPipelineStateDesc.PS.BytecodeLength = static_cast<SIZE_T>(pixelShader.size());
@@ -454,6 +521,79 @@ void DirectX12Tutorial::CreatePipelineState2D()
 	HRESULT_ASSERT(hr);
 }
 
+void DirectX12Tutorial::CreatePipelineState3D()
+{
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc{};
+	//ルート署名 シェーダーと互換性があるか判定されます。
+	graphicsPipelineStateDesc.pRootSignature = mRootSignature;
+	CSO vertexShader;
+	//頂点シェーダーの読み込み
+	LoadCSO("VertexShader3D.cso", &vertexShader);
+	//頂点シェーダーの設定
+	graphicsPipelineStateDesc.VS.pShaderBytecode = vertexShader.data();
+	graphicsPipelineStateDesc.VS.BytecodeLength = static_cast<SIZE_T>(vertexShader.size());
+	CSO pixelShader;
+	//ピクセルシェーダーの読み込み
+	LoadCSO("PixelShader3D.cso", &pixelShader);
+	//ピクセルシェーダーの設定
+	graphicsPipelineStateDesc.PS.pShaderBytecode = pixelShader.data();
+	graphicsPipelineStateDesc.PS.BytecodeLength = static_cast<SIZE_T>(pixelShader.size());
+	//その他のシェーダーは使用しない
+	graphicsPipelineStateDesc.DS = D3D12_SHADER_BYTECODE{ nullptr,0 };
+	graphicsPipelineStateDesc.HS = D3D12_SHADER_BYTECODE{ nullptr,0 };
+	graphicsPipelineStateDesc.GS = D3D12_SHADER_BYTECODE{ nullptr,0 };
+	//ストリーム出力は使用しないので無視してOK
+	graphicsPipelineStateDesc.StreamOutput = D3D12_STREAM_OUTPUT_DESC{};
+	//ブレンドの設定
+	SetBlendDesc(&graphicsPipelineStateDesc.BlendState);
+	//ブレンドのサンプルマスクの設定
+	graphicsPipelineStateDesc.SampleMask = UINT_MAX;
+	//ラスタライザーの設定
+	SetRasterizerDesc(&graphicsPipelineStateDesc.RasterizerState);
+	//深度ステンシルの設定
+	SetDepthStencilDesc(&graphicsPipelineStateDesc.DepthStencilState);
+	graphicsPipelineStateDesc.DepthStencilState.DepthEnable = TRUE;
+	graphicsPipelineStateDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	//頂点バッファのデータの情報を取得
+	D3D12_INPUT_ELEMENT_DESC inputElementDescs[]
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex,mPosition), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex,mNormal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(Vertex,mColor), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
+	//入力データの設定
+	graphicsPipelineStateDesc.InputLayout.pInputElementDescs = inputElementDescs;
+	graphicsPipelineStateDesc.InputLayout.NumElements = ARRAYSIZE(inputElementDescs);
+	//ストリップの切り取り値
+	graphicsPipelineStateDesc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
+	//プリミティブトポロジーのタイプ(頂点情報の解釈方法)
+	graphicsPipelineStateDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	//書き込み先の数
+	graphicsPipelineStateDesc.NumRenderTargets = 1;
+	//書き込み先のフォーマット
+	graphicsPipelineStateDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	//深度バッファのフォーマット(使用しない場合DXGI_FORMAT_UNKNOWN)
+	graphicsPipelineStateDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
+	//書き込み先のMSAAの設定
+	graphicsPipelineStateDesc.SampleDesc.Count = 1;
+	graphicsPipelineStateDesc.SampleDesc.Quality = 0;
+	//ノードマスクは0
+	graphicsPipelineStateDesc.NodeMask = 0;
+	/*
+		キャッシュされたパイプラインステートオブジェクト(PSO)データ
+		同じ設定のPSOを複数作成するときに、最初に作成したPSOから
+		キャッシュすることで作成が高速になる(らしい)
+	*/
+	graphicsPipelineStateDesc.CachedPSO = D3D12_CACHED_PIPELINE_STATE{ nullptr,0 };
+	//フラグなし
+	graphicsPipelineStateDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	//パイプラインステートオブジェクトの作成
+	HRESULT hr = mDevice->CreateGraphicsPipelineState(
+		&graphicsPipelineStateDesc,
+		IID_PPV_ARGS(&mPipelineState3D));
+	HRESULT_ASSERT(hr);
+}
+
 void DirectX12Tutorial::CreateVertexBuffer2D()
 {
 	//ヒープのプロパティをアップロードの設定
@@ -542,6 +682,10 @@ void DirectX12Tutorial::CreateVertexBuffer2D()
 	mVertexBuffer2D->Unmap(0, nullptr);
 }
 
+void DirectX12Tutorial::CreateVertexBuffer3D()
+{
+}
+
 void DirectX12Tutorial::BeginRendering()
 {
 	mBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
@@ -567,13 +711,16 @@ void DirectX12Tutorial::BeginRendering()
 		&resourceBarrier
 	);
 
+	auto dsvHandle = mDsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+
 	//書き込み先の設定
 	mCmdListForDrawing->OMSetRenderTargets(
 		1,
 		&mBackBaffers[mBackBufferIndex].mCpuHandle,
 		TRUE,
-		nullptr
+		&dsvHandle
 	);
+
 	//書き込み先のクリア
 	mCmdListForDrawing->ClearRenderTargetView(
 		mBackBaffers[mBackBufferIndex].mCpuHandle,
@@ -581,6 +728,15 @@ void DirectX12Tutorial::BeginRendering()
 		0,
 		nullptr
 	);
+
+	mCmdListForDrawing->ClearDepthStencilView(
+		dsvHandle,
+		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
+		1.0f, 0,
+		0,
+		nullptr
+	);
+
 	//ビューポートの設定
 	mCmdListForDrawing->RSSetViewports(1, &mViewport);
 	//シザー矩形の設定
@@ -770,6 +926,8 @@ DirectX12Tutorial::DirectX12Tutorial(const HWND hWnd)
 	CreateCmdObjects();
 	//スワップチェインと書き込み先の作成
 	CreateSwapChainAndRenderTargets(hWnd);
+	//深度バッファの作成
+	CreateDepthStencilView();
 	//フェンスの作成
 	CreateFence();
 	//ルート署名の作成

@@ -24,8 +24,7 @@ public:
 
 	struct Scene
 	{
-		XMFLOAT4X4 mViewProj{};
-		XMFLOAT4X4 mWorld{};
+		XMFLOAT4X4 mWorldViewProj{};
 	};
 
 	struct BackBuffer
@@ -76,7 +75,8 @@ private:
 	void CreateDevice();
 	void CreateCmdObjects();
 	void CreateSwapChainAndRenderTargets(const HWND);
-	void CreateDepthStencilView(const HWND);
+	void CreateDepthStencilView();
+	void LoadTexture();
 	void CreateFence();
 	void CreateRootSignature();
 	void CreatePipelineState2D();
