@@ -47,6 +47,9 @@
     <ClInclude Include="HighResolutionTimer.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="FrameBuffer.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="PixelShader2D.hlsl">

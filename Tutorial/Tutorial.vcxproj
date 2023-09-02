@@ -152,6 +152,7 @@
   <ItemGroup>
     <ClInclude Include="DescriptorHeap.h" />
     <ClInclude Include="DirectX12Tutorial.h" />
+    <ClInclude Include="FrameBuffer.h" />
     <ClInclude Include="HighResolutionTimer.h" />
     <ClInclude Include="Misc.h" />
     <ClInclude Include="Window.h" />
